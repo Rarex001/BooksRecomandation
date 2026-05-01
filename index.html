@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📚 Book Recommender</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: Georgia, serif;
+            background: #f5f0e8;
+            color: #2c2c2c;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 0.95rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            width: 100%;
+            max-width: 540px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+
+        .label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #999;
+            margin-bottom: 8px;
+        }
+
+        .book-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            min-height: 32px;
+            color: #1a1a1a;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0d8cc;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: Georgia, serif;
+            background: #faf8f4;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus { border-color: #8b6914; }
+
+        #suggestions {
+            background: white;
+            border: 2px solid #e0d8cc;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .suggestion-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            border-bottom: 1px solid #f0ebe0;
+        }
+
+        .suggestion-item:hover { background: #f5f0e8; }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            margin-top: 16px;
+            background: #8b6914;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: Georgia, serif;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover { background: #6d5210; }
+
+        .btn-secondary {
+            background: transparent;
+            color: #8b6914;
+            border: 2px solid #8b6914;
+            margin-top: 8px;
+        }
+
+        .btn-secondary:hover { background: #f5f0e8; }
+
+        .history {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .tag {
+            background: #f5f0e8;
+            border: 1px solid #e0d8cc;
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tag button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #999;
+            font-size: 0.9rem;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .tag button:hover { color: #c0392b; }
+
+        .recommendation-box {
+            background: #f5f0e8;
+            border-left: 4px solid #8b6914;
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 16px;
+            display: none;
+        }
+
+        .confidence {
+            font-size: 0.8rem;
+            color: #999;
+            margin-top: 6px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>📚 Book Recommender</h1>
+<p class="subtitle">Tell us what you've read. We'll find your next book.</p>
+
+<!-- Input card -->
+<div class="card">
+    <div class="label">Add a book you've read</div>
+    <input
+        type="text"
+        id="bookInput"
+        placeholder="Start typing a title..."
+        autocomplete="off"
+    />
+    <div id="suggestions"></div>
+    <button class="btn" onclick="addBook()">+ Add Book</button>
+
+    <div style="margin-top: 24px;">
+        <div class="label">Your reading history</div>
+        <div class="history" id="history">
+            <span style="color:#bbb; font-size:0.9rem">No books added yet</span>
+        </div>
+    </div>
+</div>
+
+<!-- Recommendation card -->
+<div class="card">
+    <div class="label">Last book you read</div>
+    <div class="book-title" id="lastBook">—</div>
+
+    <button class="btn" onclick="getRecommendation()">Get Recommendation →</button>
+    <button class="btn btn-secondary" onclick="getRecommendation()">🎲 Surprise me</button>
+
+    <div class="recommendation-box" id="recBox">
+        <div class="label">Recommended next</div>
+        <div class="book-title" id="recTitle"></div>
+        <div class="confidence" id="recConfidence"></div>
+    </div>
+</div>
+
+<!-- Load data and logic -->
+<script src="data.js"></script>
+<script src="recommender.js"></script>
+
+<script>
+    let alreadyRead = [];
+
+    // Autocomplete from ALL_BOOKS
+    const input = document.getElementById("bookInput");
+    const suggestionsBox = document.getElementById("suggestions");
+
+    input.addEventListener("input", () => {
+        const query = input.value.toLowerCase().trim();
+        suggestionsBox.innerHTML = "";
+
+        if (query.length < 2) {
+            suggestionsBox.style.display = "none";
+            return;
+        }
+
+        const matches = ALL_BOOKS
+            .filter(b => b.toLowerCase().includes(query))
+            .slice(0, 6);
+
+        if (matches.length === 0) {
+            suggestionsBox.style.display = "none";
+            return;
+        }
+
+        matches.forEach(book => {
+            const div = document.createElement("div");
+            div.className = "suggestion-item";
+            div.textContent = book;
+            div.onclick = () => {
+                input.value = book;
+                suggestionsBox.style.display = "none";
+            };
+            suggestionsBox.appendChild(div);
+        });
+
+        suggestionsBox.style.display = "block";
+    });
+
+    // Hide suggestions on outside click
+    document.addEventListener("click", e => {
+        if (!input.contains(e.target)) {
+            suggestionsBox.style.display = "none";
+        }
+    });
+
+    function addBook() {
+        const title = input.value.trim();
+        if (!title) return;
+        if (alreadyRead.includes(title)) {
+            alert("Already in your list!");
+            return;
+        }
+
+        alreadyRead.push(title);
+        input.value = "";
+        suggestionsBox.style.display = "none";
+        renderHistory();
+        updateLastBook();
+    }
+
+    function removeBook(title) {
+        alreadyRead = alreadyRead.filter(b => b !== title);
+        renderHistory();
+        updateLastBook();
+    }
+
+    function renderHistory() {
+        const container = document.getElementById("history");
+        if (alreadyRead.length === 0) {
+            container.innerHTML = '<span style="color:#bbb; font-size:0.9rem">No books added yet</span>';
+            return;
+        }
+        container.innerHTML = alreadyRead.map(book => `
+            <div class="tag">
+                ${book}
+                <button onclick="removeBook('${book.replace(/'/g, "\\'")}')">✕</button>
+            </div>
+        `).join("");
+    }
+
+    function updateLastBook() {
+        const el = document.getElementById("lastBook");
+        el.textContent = alreadyRead.length > 0
+            ? alreadyRead[alreadyRead.length - 1]
+            : "—";
+    }
+
+    function getRecommendation() {
+        if (alreadyRead.length === 0) {
+            alert("Add at least one book first!");
+            return;
+        }
+
+        const lastBook = alreadyRead[alreadyRead.length - 1];
+        const result   = recommend(lastBook, alreadyRead);
+
+        // Calculate a rough confidence score
+        const candidates  = BIGRAMS[lastBook] || {};
+        const filtered    = Object.fromEntries(
+            Object.entries(candidates).filter(([b]) => !alreadyRead.includes(b))
+        );
+        const total       = Object.values(filtered).reduce((a, b) => a + b, 0);
+        const topCount    = filtered[result] || 0;
+        const confidence  = total > 0 ? Math.round((topCount / total) * 100) : 0;
+
+        document.getElementById("recTitle").textContent = result;
+        document.getElementById("recConfidence").textContent =
+            confidence > 0
+                ? `Based on ${total} co-reading patterns (${confidence}% match)`
+                : "Based on general reading patterns";
+
+        document.getElementById("recBox").style.display = "block";
+    }
+
+    // Allow pressing Enter to add book
+    input.addEventListener("keydown", e => {
+        if (e.key === "Enter") addBook();
+    });
+</script>
+
+</body>
+</html>
